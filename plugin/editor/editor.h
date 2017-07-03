@@ -11,7 +11,9 @@ struct editor_component {
 	GString *trace_name;
 	struct bt_notification_iterator *input_iterator;
 	FILE *err;
-}
+	GHashTable *trace_map;
+	bool error;
+};
 
 enum fs_editor_stream_state {
 	/*
@@ -42,7 +44,7 @@ struct fs_editor {
 enum bt_component_status editor_component_init(
 	struct bt_private_component *component,
 	struct bt_value *params,
-	UNUSED_VAR void *init_method_data);
+	void *init_method_data);
 
 void editor_component_port_connected(
 		struct bt_private_component *component,

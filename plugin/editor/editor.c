@@ -1,13 +1,31 @@
+#include <babeltrace/ctf-ir/packet.h>
+#include <babeltrace/plugin/plugin-dev.h>
+#include <babeltrace/graph/connection.h>
+#include <babeltrace/graph/component.h>
+#include <babeltrace/graph/private-component.h>
+#include <babeltrace/graph/component-sink.h>
+#include <babeltrace/graph/private-component-sink.h>
+#include <babeltrace/graph/private-port.h>
+#include <babeltrace/graph/private-connection.h>
+#include <babeltrace/graph/notification.h>
+#include <babeltrace/graph/notification-iterator.h>
+#include <babeltrace/graph/notification-event.h>
+#include <babeltrace/graph/notification-packet.h>
+#include <babeltrace/graph/notification-stream.h>
+#include <plugins-common.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <assert.h>
+
 #include "editor.h"
-#include "editor-utils.c"
 
 struct editor_component* create_editor_component() {
 	struct editor_component* comp;
 
 	comp = g_new0(struct editor_component, 1);
 
-	writer_component->trace_name_base = g_string_new("ma-trace");
-	writer_component->err = stderr;
+	comp->trace_name = g_string_new("ma-trace");
+	comp->err = stderr;
 
 	return comp;
 }
@@ -61,7 +79,7 @@ void editor_component_port_connected(
 	conn_status = bt_private_connection_create_notification_iterator(
 		connection, notif_types, &editor->input_iterator);
 	if (conn_status != BT_CONNECTION_STATUS_OK) {
-		writer->error = true;
+		editor->error = true;
 	}
 
 	bt_put(connection);
@@ -179,7 +197,7 @@ enum bt_component_status editor_run(struct bt_private_component *component) {
 	enum bt_component_status ret;
 	struct bt_notification *notification = NULL;
 	struct bt_notification_iterator *it;
-	struct writer_component *editor_component =
+	struct editor_component *editor_component =
 		bt_private_component_get_user_data(component);
 	enum bt_notification_iterator_status it_ret;
 

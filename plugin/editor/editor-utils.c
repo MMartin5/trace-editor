@@ -379,7 +379,7 @@ struct bt_ctf_stream_class *lookup_stream_class(
 			editor_component, stream_class);
 	assert(fs_editor);
 	return (struct bt_ctf_stream_class *) g_hash_table_lookup(
-			fs_writer->stream_class_map, (gpointer) stream_class);
+			fs_editor->stream_class_map, (gpointer) stream_class);
 }
 
 struct bt_ctf_stream *lookup_stream(struct editor_component *editor_component,
@@ -736,9 +736,9 @@ enum bt_component_status editor_stream_begin(
   }
   *state = FS_EDITOR_ACTIVE_STREAM;
 
-  editor_stream = insert_new_stream(editor_component, fs_editor,
+  writer_stream = insert_new_stream(editor_component, fs_editor,
       stream_class, stream);
-  if (!editor_stream) {
+  if (!writer_stream) {
     fprintf(editor_component->err, "[error] %s in %s:%d\n",
         __func__, __FILE__, __LINE__);
     goto error;
