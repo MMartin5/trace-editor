@@ -8,7 +8,8 @@ libbabeltrace_plugin_editor_la_LIBADD =
 # editor plugin
 libbabeltrace_plugin_editor_la_SOURCES = \
 	editor.c \
-	editor.h
+	editor.h \
+	editor-utils.c
 
 if !BUILT_IN_PLUGINS
 libbabeltrace_plugin_editor_la_LIBADD += \
