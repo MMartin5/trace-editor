@@ -1,20 +1,22 @@
-BABELTRACE_DIR = /home/mmartin/Bureau/Poly/Maîtrise/Outils/babeltrace-2.0.0-pre1
+AM_CFLAGS = $(PACKAGE_CFLAGS) -I$(top_srcdir)/include
 
-AM_CFLAGS = $(PACKAGE_CFLAGS) -I$(BABELTRACE_DIR)/include -I$(BABELTRACE_DIR)/plugins
-
-SUBDIRS = editor .
+SUBDIRS = editor
 
 plugindir = "$(PLUGINSDIR)"
-plugin_LTLIBRARIES = libbabeltrace-plugin-editor.la
+plugin_LTLIBRARIES = libbabeltrace-plugin-trace-editor.la
 
-libbabeltrace_plugin_text_la_SOURCES = plugin.c
-libbabeltrace_plugin_text_la_LDFLAGS = \
+# editor plugin
+libbabeltrace_plugin_trace_editor_la_SOURCES = plugin.c
+
+libbabeltrace_plugin_trace_editor_la_LDFLAGS = \
 	-version-info $(BABELTRACE_LIBRARY_VERSION)
-libbabeltrace_plugin_text_la_LIBADD = \
-	editor/libbabeltrace-plugin-trace-editor-cc.la
+
+libbabeltrace_plugin_trace_editor_la_LIBADD = \
+	editor/libbabeltrace-plugin-editor.la
 
 if !BUILT_IN_PLUGINS
-libbabeltrace_plugin_editor_la_LIBADD += \
+libbabeltrace_plugin_trace_editor_la_LIBADD += \
 	$(top_builddir)/lib/libbabeltrace.la \
+	$(top_builddir)/logging/libbabeltrace-logging.la \
 	$(top_builddir)/common/libbabeltrace-common.la
 endif
