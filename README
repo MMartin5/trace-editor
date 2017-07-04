@@ -1,3 +1,8 @@
 Write a new trace, with one event deleted:
 babeltrace <path to existing trace> --component sink.trace-editor.editor --name editor --path <path to new trace> --params delete=<index of event to delete>
 babeltrace <path to existing trace> --component sink.trace-editor.editor --name editor --path <path to new trace> --params 'delete="<indexes of event to delete, separated by a comma>"'
+
+References :
+* split string : https://stackoverflow.com/a/26228023
+
+WARNING : some code is duplicated from the fs-sink.ctf plugin (basically everything except for the handling of events)

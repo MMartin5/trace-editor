@@ -270,7 +270,6 @@ enum bt_component_status editor_run(struct bt_private_component *component) {
 	switch (it_ret) {
 	case BT_NOTIFICATION_ITERATOR_STATUS_END:
 		ret = BT_COMPONENT_STATUS_END;
-		printf("TOTAL NUMBER OF EVENTS : %d", editor_component->event_count);
 		BT_PUT(editor_component->input_iterator);
 		goto end;
 	case BT_NOTIFICATION_ITERATOR_STATUS_AGAIN:
