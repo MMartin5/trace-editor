@@ -14,7 +14,8 @@ struct editor_component {
 	GHashTable *trace_map;
 	bool error;
 	int event_count;
-	int delete_index;
+	// int delete_index;
+	GArray *delete_index;
 };
 
 enum fs_editor_stream_state {

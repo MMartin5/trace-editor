@@ -39,6 +39,8 @@ struct editor_component* create_editor_component() {
 
 	comp->event_count = 0;
 
+	comp->delete_index = g_array_new(FALSE, TRUE, sizeof(gint));
+
 	return comp;
 }
 
@@ -51,7 +53,12 @@ enum bt_component_status editor_component_init(
 		struct bt_value *value = NULL;
 		enum bt_value_status value_ret;
 		const char *path;
+		const char *index_string;
 		int *delete_index;
+		int i;
+		struct bt_value *element;
+		int array_value;
+		char *list;
 
 		editor = create_editor_component();
 
@@ -64,9 +71,12 @@ enum bt_component_status editor_component_init(
 		editor->path = g_string_new(path);
 
 		value = bt_value_map_get(params, "delete");
-		value_ret = bt_value_integer_get(value, &delete_index);
+		value_ret = bt_value_string_get(value, &index_string);
 		bt_put(value);
-		editor->delete_index = delete_index;
+		while (list = strsep(&index_string, ",")) {
+			array_value = atoi(list);
+			g_array_append_val(editor->delete_index, array_value);
+		}
 
 		ret = bt_private_component_set_user_data(component, editor);
 
@@ -126,6 +136,8 @@ void destroy_editor_component_data(struct editor_component *editor_component)
 
 	g_string_free(editor_component->path, true);
 	g_string_free(editor_component->trace_name, true);
+
+	g_array_free(editor_component->delete_index, true);
 }
 
 void finalize_editor(struct bt_private_component *component) {
@@ -185,14 +197,22 @@ enum bt_component_status handle_notification(
 			goto end;
 		}
 
-		if (editor_component->event_count != editor_component->delete_index) {
+		bool delete = false;
+		guint i;
+		for (i = 0; i < editor_component->delete_index->len; i++) {
+			if (g_array_index(editor_component->delete_index, gint, i) ==
+			editor_component->event_count) {
+				delete = true;
+			}
+		}
+
+		if (!delete) {
 			ret = editor_output_event(editor_component, event);
 		}
 
 		bt_put(event);
 		editor_component->event_count++;
-		if (ret != BT_COMPONENT_STATUS_OK
-			&& editor_component->event_count != editor_component->delete_index) {
+		if (ret != BT_COMPONENT_STATUS_OK	&& !delete) {
 			goto end;
 		}
 		break;
