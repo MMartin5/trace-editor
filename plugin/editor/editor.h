@@ -13,6 +13,8 @@ struct editor_component {
 	FILE *err;
 	GHashTable *trace_map;
 	bool error;
+	int event_count;
+	int delete_index;
 };
 
 enum fs_editor_stream_state {

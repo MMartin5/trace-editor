@@ -37,17 +37,21 @@ struct editor_component* create_editor_component() {
 	comp->trace_map = g_hash_table_new_full(g_direct_hash,
 			g_direct_equal, NULL, (GDestroyNotify) free_fs_editor);
 
+	comp->event_count = 1;
+
 	return comp;
 }
 
 enum bt_component_status editor_component_init(
 	struct bt_private_component *component,
 	struct bt_value *params, void *init_method_data) {
+
 		enum bt_component_status ret;
 		struct editor_component* editor;
 		struct bt_value *value = NULL;
 		enum bt_value_status value_ret;
 		const char *path;
+		int *delete_index;
 
 		editor = create_editor_component();
 
@@ -58,6 +62,11 @@ enum bt_component_status editor_component_init(
 		value_ret = bt_value_string_get(value, &path);
 		bt_put(value);
 		editor->path = g_string_new(path);
+
+		value = bt_value_map_get(params, "delete");
+		value_ret = bt_value_integer_get(value, &delete_index);
+		bt_put(value);
+		editor->delete_index = delete_index;
 
 		ret = bt_private_component_set_user_data(component, editor);
 
@@ -175,9 +184,15 @@ enum bt_component_status handle_notification(
 			ret = BT_COMPONENT_STATUS_ERROR;
 			goto end;
 		}
-		ret = editor_output_event(editor_component, event);
+
+		if (editor_component->event_count != editor_component->delete_index) {
+			ret = editor_output_event(editor_component, event);
+		}
+
 		bt_put(event);
-		if (ret != BT_COMPONENT_STATUS_OK) {
+		editor_component->event_count++;
+		if (ret != BT_COMPONENT_STATUS_OK
+			&& editor_component->event_count != editor_component->delete_index) {
 			goto end;
 		}
 		break;
@@ -235,6 +250,7 @@ enum bt_component_status editor_run(struct bt_private_component *component) {
 	switch (it_ret) {
 	case BT_NOTIFICATION_ITERATOR_STATUS_END:
 		ret = BT_COMPONENT_STATUS_END;
+		printf("TOTAL NUMBER OF EVENTS : %d", editor_component->event_count);
 		BT_PUT(editor_component->input_iterator);
 		goto end;
 	case BT_NOTIFICATION_ITERATOR_STATUS_AGAIN:
