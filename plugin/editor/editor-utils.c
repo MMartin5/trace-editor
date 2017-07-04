@@ -69,7 +69,7 @@ void trace_is_static_listener(struct bt_ctf_trace *trace, void *data)
 	g_hash_table_foreach(fs_editor->stream_states,
 			check_completed_trace, &trace_completed);
 	if (trace_completed) {
-		writer_close(fs_editor->editor_component, fs_editor);
+		editor_close(fs_editor->editor_component, fs_editor);
 		g_hash_table_remove(fs_editor->editor_component->trace_map,
 				fs_editor->trace);
 	}
@@ -469,7 +469,7 @@ end:
 	return writer_stream;
 }
 
-void writer_close(struct editor_component *editor_component,
+void editor_close(struct editor_component *editor_component,
 		struct fs_editor *fs_editor)
 {
 	if (fs_editor->static_listener_id >= 0) {
@@ -491,6 +491,119 @@ void writer_close(struct editor_component *editor_component,
 	g_hash_table_foreach_remove(fs_editor->stream_states,
 			empty_ht, NULL);
 	g_hash_table_destroy(fs_editor->stream_states);
+}
+
+enum bt_component_status editor_stream_begin(
+		struct editor_component *editor_component,
+		struct bt_ctf_stream *stream) {
+  struct bt_ctf_stream_class *stream_class = NULL;
+  struct fs_editor *fs_editor;
+  struct bt_ctf_stream *writer_stream = NULL;
+  enum bt_component_status ret = BT_COMPONENT_STATUS_OK;
+  enum fs_editor_stream_state *state;
+
+  stream_class = bt_ctf_stream_get_class(stream);
+  if (!stream_class) {
+    fprintf(editor_component->err, "[error] %s in %s:%d\n",
+        __func__, __FILE__, __LINE__);
+    goto error;
+  }
+
+  fs_editor = get_fs_editor(editor_component, stream_class);
+  if (!fs_editor) {
+    fprintf(editor_component->err, "[error] %s in %s:%d\n",
+        __func__, __FILE__, __LINE__);
+    goto error;
+  }
+
+  /* Set the stream as active */
+  state = g_hash_table_lookup(fs_editor->stream_states, stream);
+  if (!state) {
+    if (fs_editor->trace_static) {
+      fprintf(editor_component->err, "[error] Adding a new "
+          "stream on a static trace\n");
+      goto error;
+    }
+    state = insert_new_stream_state(editor_component, fs_editor,
+        stream);
+  }
+  if (*state != FS_EDITOR_UNKNOWN_STREAM) {
+    fprintf(editor_component->err, "[error] Unexpected stream "
+        "state %d\n", *state);
+    goto error;
+  }
+  *state = FS_EDITOR_ACTIVE_STREAM;
+
+  writer_stream = insert_new_stream(editor_component, fs_editor,
+      stream_class, stream);
+  if (!writer_stream) {
+    fprintf(editor_component->err, "[error] %s in %s:%d\n",
+        __func__, __FILE__, __LINE__);
+    goto error;
+  }
+
+  goto end;
+
+  error:
+  ret = BT_COMPONENT_STATUS_ERROR;
+  end:
+  bt_put(stream_class);
+  return ret;
+}
+
+enum bt_component_status editor_stream_end(
+		struct editor_component *editor_component,
+		struct bt_ctf_stream *stream) {
+  struct bt_ctf_stream_class *stream_class = NULL;
+  struct fs_editor *fs_editor;
+  struct bt_ctf_trace *trace = NULL;
+  enum bt_component_status ret = BT_COMPONENT_STATUS_OK;
+  enum fs_editor_stream_state *state;
+
+  stream_class = bt_ctf_stream_get_class(stream);
+  if (!stream_class) {
+  	fprintf(editor_component->err, "[error] %s in %s:%d\n",
+  			__func__, __FILE__, __LINE__);
+  	goto error;
+  }
+
+  fs_editor = get_fs_editor(editor_component, stream_class);
+  if (!fs_editor) {
+  	fprintf(editor_component->err, "[error] %s in %s:%d\n",
+  			__func__, __FILE__, __LINE__);
+  	goto error;
+  }
+
+  state = g_hash_table_lookup(fs_editor->stream_states, stream);
+  if (*state != FS_EDITOR_ACTIVE_STREAM) {
+  	fprintf(editor_component->err, "[error] Unexpected stream "
+  			"state %d\n", *state);
+  	goto error;
+  }
+  *state = FS_EDITOR_COMPLETED_STREAM;
+
+  g_hash_table_remove(fs_editor->stream_map, stream);
+
+  if (fs_editor->trace_static) {
+  	int trace_completed = 1;
+
+  	g_hash_table_foreach(fs_editor->stream_states,
+  			check_completed_trace, &trace_completed);
+  	if (trace_completed) {
+  		editor_close(editor_component, fs_editor);
+  		g_hash_table_remove(editor_component->trace_map,
+  				fs_editor->trace);
+  	}
+  }
+
+  goto end;
+
+  error:
+  ret = BT_COMPONENT_STATUS_ERROR;
+  end:
+  BT_PUT(trace);
+  BT_PUT(stream_class);
+  return ret;
 }
 
 enum bt_component_status editor_new_packet(
@@ -692,118 +805,5 @@ enum bt_component_status editor_output_event(
   bt_put(writer_stream);
   bt_put(stream);
   bt_put(event_class);
-  return ret;
-}
-
-enum bt_component_status editor_stream_begin(
-		struct editor_component *editor_component,
-		struct bt_ctf_stream *stream) {
-  struct bt_ctf_stream_class *stream_class = NULL;
-  struct fs_editor *fs_editor;
-  struct bt_ctf_stream *writer_stream = NULL;
-  enum bt_component_status ret = BT_COMPONENT_STATUS_OK;
-  enum fs_editor_stream_state *state;
-
-  stream_class = bt_ctf_stream_get_class(stream);
-  if (!stream_class) {
-    fprintf(editor_component->err, "[error] %s in %s:%d\n",
-        __func__, __FILE__, __LINE__);
-    goto error;
-  }
-
-  fs_editor = get_fs_editor(editor_component, stream_class);
-  if (!fs_editor) {
-    fprintf(editor_component->err, "[error] %s in %s:%d\n",
-        __func__, __FILE__, __LINE__);
-    goto error;
-  }
-
-  /* Set the stream as active */
-  state = g_hash_table_lookup(fs_editor->stream_states, stream);
-  if (!state) {
-    if (fs_editor->trace_static) {
-      fprintf(editor_component->err, "[error] Adding a new "
-          "stream on a static trace\n");
-      goto error;
-    }
-    state = insert_new_stream_state(editor_component, fs_editor,
-        stream);
-  }
-  if (*state != FS_EDITOR_UNKNOWN_STREAM) {
-    fprintf(editor_component->err, "[error] Unexpected stream "
-        "state %d\n", *state);
-    goto error;
-  }
-  *state = FS_EDITOR_ACTIVE_STREAM;
-
-  writer_stream = insert_new_stream(editor_component, fs_editor,
-      stream_class, stream);
-  if (!writer_stream) {
-    fprintf(editor_component->err, "[error] %s in %s:%d\n",
-        __func__, __FILE__, __LINE__);
-    goto error;
-  }
-
-  goto end;
-
-  error:
-  ret = BT_COMPONENT_STATUS_ERROR;
-  end:
-  bt_put(stream_class);
-  return ret;
-}
-
-enum bt_component_status editor_stream_end(
-		struct editor_component *editor_component,
-		struct bt_ctf_stream *stream) {
-  struct bt_ctf_stream_class *stream_class = NULL;
-  struct fs_editor *fs_editor;
-  struct bt_ctf_trace *trace = NULL;
-  enum bt_component_status ret = BT_COMPONENT_STATUS_OK;
-  enum fs_editor_stream_state *state;
-
-  stream_class = bt_ctf_stream_get_class(stream);
-  if (!stream_class) {
-  	fprintf(editor_component->err, "[error] %s in %s:%d\n",
-  			__func__, __FILE__, __LINE__);
-  	goto error;
-  }
-
-  fs_editor = get_fs_editor(editor_component, stream_class);
-  if (!fs_editor) {
-  	fprintf(editor_component->err, "[error] %s in %s:%d\n",
-  			__func__, __FILE__, __LINE__);
-  	goto error;
-  }
-
-  state = g_hash_table_lookup(fs_editor->stream_states, stream);
-  if (*state != FS_EDITOR_ACTIVE_STREAM) {
-  	fprintf(editor_component->err, "[error] Unexpected stream "
-  			"state %d\n", *state);
-  	goto error;
-  }
-  *state = FS_EDITOR_COMPLETED_STREAM;
-
-  g_hash_table_remove(fs_editor->stream_map, stream);
-
-  if (fs_editor->trace_static) {
-  	int trace_completed = 1;
-
-  	g_hash_table_foreach(fs_editor->stream_states,
-  			check_completed_trace, &trace_completed);
-  	if (trace_completed) {
-  		editor_close(editor_component, fs_editor);
-  		g_hash_table_remove(editor_component->trace_map,
-  				fs_editor->trace);
-  	}
-  }
-
-  goto end;
-
-  error:
-  ret = BT_COMPONENT_STATUS_ERROR;
-  end:
-  BT_PUT(trace);
-  BT_PUT(stream_class);
   return ret;
 }

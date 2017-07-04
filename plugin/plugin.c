@@ -2,7 +2,7 @@
 #include "editor/editor.h"
 
 /* plug-in description */
-BT_PLUGIN(editor);
+BT_PLUGIN(trace-editor);
 BT_PLUGIN_DESCRIPTION("Trace editor");
 BT_PLUGIN_AUTHOR("Marie Martin");
 BT_PLUGIN_LICENSE("MIT");

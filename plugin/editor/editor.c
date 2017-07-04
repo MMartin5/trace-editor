@@ -19,6 +19,13 @@
 
 #include "editor.h"
 
+static
+void free_fs_editor(struct fs_editor *fs_editor)
+{
+	bt_put(fs_editor->writer);
+	g_free(fs_editor);
+}
+
 struct editor_component* create_editor_component() {
 	struct editor_component* comp;
 
@@ -26,6 +33,9 @@ struct editor_component* create_editor_component() {
 
 	comp->trace_name = g_string_new("ma-trace");
 	comp->err = stderr;
+
+	comp->trace_map = g_hash_table_new_full(g_direct_hash,
+			g_direct_equal, NULL, (GDestroyNotify) free_fs_editor);
 
 	return comp;
 }
@@ -85,13 +95,25 @@ void editor_component_port_connected(
 	bt_put(connection);
 }
 
+static
+gboolean empty_trace_map(gpointer key, gpointer value, gpointer user_data)
+{
+	struct fs_editor *fs_editor = value;
+	struct editor_component *editor_component = user_data;
+
+	fs_editor->trace_static = 1;
+	editor_close(editor_component, fs_editor);
+
+	return TRUE;
+}
+
 void destroy_editor_component_data(struct editor_component *editor_component)
 {
 	bt_put(editor_component->input_iterator);
 
-	// g_hash_table_foreach_remove(writer_component->trace_map,
-	// 		empty_trace_map, writer_component);
-	// g_hash_table_destroy(writer_component->trace_map);
+	g_hash_table_foreach_remove(editor_component->trace_map,
+			empty_trace_map, editor_component);
+	g_hash_table_destroy(editor_component->trace_map);
 
 	g_string_free(editor_component->path, true);
 	g_string_free(editor_component->trace_name, true);
