@@ -223,10 +223,10 @@ enum bt_component_status editor_run(struct bt_private_component *component) {
 		bt_private_component_get_user_data(component);
 	enum bt_notification_iterator_status it_ret;
 
-	// if (unlikely(writer_component->error)) {
-	// 	ret = BT_COMPONENT_STATUS_ERROR;
-	// 	goto end;
-	// }
+	if (unlikely(editor_component->error)) {
+		ret = BT_COMPONENT_STATUS_ERROR;
+		goto end;
+	}
 
 	it = editor_component->input_iterator;
 	assert(it);

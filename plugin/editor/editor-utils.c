@@ -228,7 +228,7 @@ struct fs_editor *insert_new_editor(
 		goto error;
 	}
 
-	printf("ctf.fs sink creating trace in %s\n", trace_path);
+	printf("editor-trace.editor sink creating trace in %s\n", trace_path);
 
 	ctf_writer = bt_ctf_writer_create(trace_path);
 	if (!ctf_writer) {
