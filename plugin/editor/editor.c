@@ -37,7 +37,7 @@ struct editor_component* create_editor_component() {
 	comp->trace_map = g_hash_table_new_full(g_direct_hash,
 			g_direct_equal, NULL, (GDestroyNotify) free_fs_editor);
 
-	comp->event_count = 1;
+	comp->event_count = 0;
 
 	return comp;
 }

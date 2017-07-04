@@ -1,7 +1,2 @@
-make
-LD_LIBRARY_PATH=/usr/local/lib/
-export LD_LIBRARY_PATH
-./trace_editor <path to trace to read from> <path to trace to write to>
-
-References :
-https://www.gnu.org/software/gsl/manual/html_node/Shared-Libraries.html
+Write a new trace, with one event deleted:
+babeltrace <path to existing trace> --component sink.trace-editor.editor --name editor --path <path to new trace> --params delete=<index of event to delete>
