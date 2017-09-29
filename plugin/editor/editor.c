@@ -58,6 +58,8 @@ enum bt_component_status editor_component_init(
 		int i;
 		struct bt_value *element;
 		int array_value;
+		int first;
+		int last;
 		char *list;
 
 		editor = create_editor_component();
@@ -71,11 +73,31 @@ enum bt_component_status editor_component_init(
 		editor->path = g_string_new(path);
 
 		value = bt_value_map_get(params, "delete");
-		value_ret = bt_value_string_get(value, &index_string);
-		bt_put(value);
-		while (list = strsep(&index_string, ",")) {
-			array_value = atoi(list);
-			g_array_append_val(editor->delete_index, array_value);
+		if (value) {
+			value_ret = bt_value_string_get(value, &index_string);
+			bt_put(value);
+			while (list = strsep(&index_string, ",")) {
+				array_value = atoi(list);
+				printf("DELETE VALUE: %d\n", array_value);
+				g_array_append_val(editor->delete_index, array_value);
+			}
+		}
+
+		value = bt_value_map_get(params, "delete-interval");
+		if (value) {
+			value_ret = bt_value_string_get(value, &index_string);
+			bt_put(value);
+			// if index_string="a:b", first=a and last=b
+			first = atoi(strsep(&index_string, ":"));
+			last = atoi(strsep(&index_string, ":"));
+			if (last < first) {
+				// error
+			}
+			for (i = first; i <= last; i++) {
+				array_value = i;
+				printf("DELETE VALUE: %d\n", array_value);
+				g_array_append_val(editor->delete_index, array_value);
+			}
 		}
 
 		ret = bt_private_component_set_user_data(component, editor);

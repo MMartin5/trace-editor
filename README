@@ -1,6 +1,14 @@
 Write a new trace, with one event deleted:
 babeltrace <path to existing trace> --component sink.trace-editor.editor --name editor --path <path to new trace> --params delete=<index of event to delete>
-babeltrace <path to existing trace> --component sink.trace-editor.editor --name editor --path <path to new trace> --params 'delete="<indexes of event to delete, separated by a comma>"'
+babeltrace <path to existing trace> --component sink.trace-editor.editor --name editor --path <path to new trace> --params 'delete="<indexes of events to delete, separated by a comma>"'
+babeltrace <path to existing trace> --component sink.trace-editor.editor --name editor --path <path to new trace> --params 'delete-interval="<first index of interval of events to delete>:<last index of interval of events to delete>"'
+
+Use this plugin:
+1. copy the "plugin/" directory to the <babeltrace source code root>/plugins/
+2. ./configure (from root of babeltrace source code)
+3. make
+4. make install
+5. ldconfig
 
 References :
 * split string : https://stackoverflow.com/a/26228023
