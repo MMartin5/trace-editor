@@ -4,13 +4,16 @@ babeltrace <path to existing trace> --component sink.trace-editor.editor --name 
 babeltrace <path to existing trace> --component sink.trace-editor.editor --name editor --path <path to new trace> --params 'delete-interval="<first index of interval of events to delete>:<last index of interval of events to delete>"'
 
 Use this plugin:
-1. copy the "plugin/" directory to the <babeltrace source code root>/plugins/
-2. ./configure (from root of babeltrace source code)
-3. make
-4. make install
-5. ldconfig
+1. add the paths to Makefile of the plugin to the "AC_CONFIG_FILES" variable in configure.ac file + add plugin root to "SUBDIRS" variable in Makefile.am file from plugins directory
+2. copy the "plugin/" directory to the <babeltrace source code root>/plugins/
+3. ./bootstrap
+4. ./configure (from root of babeltrace source code)
+5. make
+6. make install
+7. ldconfig
 
 References :
 * split string : https://stackoverflow.com/a/26228023
+* glib problem at "make" time : https://askubuntu.com/a/582385
 
 WARNING : some code is duplicated from the fs-sink.ctf plugin (basically everything except for the handling of events)
