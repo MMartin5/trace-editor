@@ -1,4 +1,4 @@
-AM_CFLAGS = $(PACKAGE_CFLAGS) -I$(top_srcdir)/include
+AM_CFLAGS = $(PACKAGE_CFLAGS) -I$(top_srcdir)/include `pkg-config --cflags glib-2.0`
 
 SUBDIRS = editor
 
