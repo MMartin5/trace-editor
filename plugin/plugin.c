@@ -1,6 +1,8 @@
 #include <babeltrace/plugin/plugin-dev.h>
 #include "editor/editor.h"
 
+BT_PLUGIN_MODULE();
+
 /* plug-in description */
 BT_PLUGIN(trace-editor);
 BT_PLUGIN_DESCRIPTION("Trace editor");
