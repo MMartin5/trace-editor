@@ -1,4 +1,7 @@
+#include <babeltrace/ctf-ir/packet-internal.h>
 #include <babeltrace/ctf-ir/packet.h>
+#include <babeltrace/ctf-ir/stream-internal.h>
+#include <babeltrace/ctf-ir/trace-internal.h>
 #include <babeltrace/plugin/plugin-dev.h>
 #include <babeltrace/graph/connection.h>
 #include <babeltrace/graph/component.h>
@@ -8,10 +11,13 @@
 #include <babeltrace/graph/private-port.h>
 #include <babeltrace/graph/private-connection.h>
 #include <babeltrace/graph/notification.h>
+#include <babeltrace/graph/notification-iterator-internal.h>
 #include <babeltrace/graph/notification-iterator.h>
+#include <babeltrace/graph/notification-event-internal.h>
 #include <babeltrace/graph/notification-event.h>
 #include <babeltrace/graph/notification-packet.h>
 #include <babeltrace/graph/notification-stream.h>
+#include <babeltrace/ctf-ir/event-internal.h>
 #include <plugins-common.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -41,6 +47,8 @@ struct editor_component* create_editor_component() {
 
 	comp->delete_index = g_array_new(FALSE, TRUE, sizeof(gint));
 
+	comp->deleted_count = 0;
+
 	return comp;
 }
 
@@ -54,13 +62,12 @@ enum bt_component_status editor_component_init(
 		enum bt_value_status value_ret;
 		const char *path;
 		const char *index_string;
-		int *delete_index;
 		int i;
-		struct bt_value *element;
 		int array_value;
 		int first;
 		int last;
 		char *list;
+		int deleted_count = 0;
 
 		editor = create_editor_component();
 
@@ -78,9 +85,11 @@ enum bt_component_status editor_component_init(
 			bt_put(value);
 			while (list = strsep(&index_string, ",")) {
 				array_value = atoi(list);
+				deleted_count++;
 				printf("DELETE VALUE: %d\n", array_value);
 				g_array_append_val(editor->delete_index, array_value);
 			}
+			editor->deleted_count = deleted_count;
 		}
 
 		value = bt_value_map_get(params, "delete-interval");
@@ -95,9 +104,11 @@ enum bt_component_status editor_component_init(
 			}
 			for (i = first; i <= last; i++) {
 				array_value = i;
+				deleted_count++;
 				printf("DELETE VALUE: %d\n", array_value);
 				g_array_append_val(editor->delete_index, array_value);
 			}
+			editor->deleted_count = deleted_count;
 		}
 
 		ret = bt_private_component_set_user_data(component, editor);
@@ -160,6 +171,9 @@ void destroy_editor_component_data(struct editor_component *editor_component)
 	g_string_free(editor_component->trace_name, true);
 
 	g_array_free(editor_component->delete_index, true);
+
+	bt_put(editor_component->first_event);
+	bt_put(editor_component->last_event);
 }
 
 void finalize_editor(struct bt_private_component *component) {
@@ -211,6 +225,7 @@ enum bt_component_status handle_notification(
 	}
 	case BT_NOTIFICATION_TYPE_EVENT:
 	{
+		bool destroy_event = true;
 		struct bt_ctf_event *event = bt_notification_event_get_event(
 				notification);
 
@@ -225,14 +240,29 @@ enum bt_component_status handle_notification(
 			if (g_array_index(editor_component->delete_index, gint, i) ==
 			editor_component->event_count) {
 				delete = true;
+				break;
 			}
+		}
+
+		if (i == 0) {
+			destroy_event = false;
+			editor_component->first_event = event;
+		}
+
+		// Add 'Lost event' count when we reach the last event to delete
+		if (i == (editor_component->delete_index->len -1)) {
+			destroy_event = false;
+			editor_component->last_event = event;
+			editor_add_lost_event(editor_component);
 		}
 
 		if (!delete) {
 			ret = editor_output_event(editor_component, event);
 		}
 
-		bt_put(event);
+		if (destroy_event) {
+			bt_put(event);
+		}
 		editor_component->event_count++;
 		if (ret != BT_COMPONENT_STATUS_OK	&& !delete) {
 			goto end;

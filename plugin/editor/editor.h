@@ -15,6 +15,9 @@ struct editor_component {
 	bool error;
 	int event_count;
 	GArray *delete_index;
+	int deleted_count; // the current number of deleted events
+	struct bt_ctf_event *first_event; // the first deleted event
+	struct bt_ctf_event *last_event; // the last deleted event
 };
 
 enum fs_editor_stream_state {
