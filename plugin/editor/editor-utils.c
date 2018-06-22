@@ -77,6 +77,113 @@ void trace_is_static_listener(struct bt_ctf_trace *trace, void *data)
 	}
 }
 
+// const unsigned char *clock_id = bt_ctf_clock_class_get_uuid(clock_class);
+// bt_ctf_clock_class_set_uuid(new_clock_class, clock_id+13);
+
+//bt_ctf_clock_set_uuid
+
+struct bt_ctf_clock_class *modified_copy_clock_class(FILE *err,
+		struct bt_ctf_clock_class *clock_class)
+{
+	int64_t offset, offset_s;
+	int int_ret;
+	uint64_t u64_ret;
+	const char *name, *description;
+	struct bt_ctf_clock_class *writer_clock_class = NULL;
+
+	assert(err && clock_class);
+
+	name = bt_ctf_clock_class_get_name(clock_class);
+	assert(name);
+
+	writer_clock_class = bt_ctf_clock_class_create(name,
+		bt_ctf_clock_class_get_frequency(clock_class));
+	if (!writer_clock_class) {
+		BT_LOGE_STR("Failed to create clock class.");
+		goto end;
+	}
+
+	description = bt_ctf_clock_class_get_description(clock_class);
+	if (description) {
+		int_ret = bt_ctf_clock_class_set_description(writer_clock_class,
+				description);
+		assert(!int_ret);
+	}
+
+	u64_ret = bt_ctf_clock_class_get_precision(clock_class);
+	assert(u64_ret != -1ULL);
+
+	int_ret = bt_ctf_clock_class_set_precision(writer_clock_class,
+		u64_ret);
+	assert(!int_ret);
+
+	int_ret = bt_ctf_clock_class_get_offset_s(clock_class, &offset_s);
+	assert(!int_ret);
+
+	int_ret = bt_ctf_clock_class_set_offset_s(writer_clock_class, offset_s);
+	assert(!int_ret);
+
+	int_ret = bt_ctf_clock_class_get_offset_cycles(clock_class, &offset);
+	assert(!int_ret);
+
+	int_ret = bt_ctf_clock_class_set_offset_cycles(writer_clock_class, offset);
+	assert(!int_ret);
+
+	int_ret = bt_ctf_clock_class_is_absolute(clock_class);
+	assert(int_ret >= 0);
+
+	int_ret = bt_ctf_clock_class_set_is_absolute(writer_clock_class, int_ret);
+	assert(!int_ret);
+
+end:
+	return writer_clock_class;
+}
+
+enum bt_component_status modified_copy_clock_classes(FILE *err,
+		struct bt_ctf_trace *writer_trace,
+		struct bt_ctf_stream_class *writer_stream_class,
+		struct bt_ctf_trace *trace)
+{
+	enum bt_component_status ret;
+	int int_ret, clock_class_count, i;
+
+	clock_class_count = bt_ctf_trace_get_clock_class_count(trace);
+
+	for (i = 0; i < clock_class_count; i++) {
+		struct bt_ctf_clock_class *writer_clock_class;
+		struct bt_ctf_clock_class *clock_class =
+			bt_ctf_trace_get_clock_class_by_index(trace, i);
+
+		assert(clock_class);
+
+		writer_clock_class = modified_copy_clock_class(err, clock_class);
+		bt_put(clock_class);
+		if (!writer_clock_class) {
+			BT_LOGE_STR("Failed to copy clock class.");
+			ret = BT_COMPONENT_STATUS_ERROR;
+			goto end;
+		}
+
+		int_ret = bt_ctf_trace_add_clock_class(writer_trace, writer_clock_class);
+		if (int_ret != 0) {
+			BT_PUT(writer_clock_class);
+			BT_LOGE_STR("Failed to add clock class.");
+			ret = BT_COMPONENT_STATUS_ERROR;
+			goto end;
+		}
+
+		/*
+		 * Ownership transferred to the trace.
+		 */
+		bt_put(writer_clock_class);
+	}
+
+	ret = BT_COMPONENT_STATUS_OK;
+
+end:
+	return ret;
+}
+
 static
 struct bt_ctf_stream_class *insert_new_stream_class(
 		struct editor_component *editor_component,
@@ -90,6 +197,7 @@ struct bt_ctf_stream_class *insert_new_stream_class(
 	struct bt_ctf_field_type *copy_packet_context_type = NULL;
 	struct bt_ctf_field_type *begin_field_type = NULL;
 	struct bt_ctf_field_type *end_field_type = NULL;
+	struct bt_ctf_field_type *deleted_field_type = NULL;
 	struct bt_ctf_field_type *type = NULL;
 	int ret_int;
 	const char *name;
@@ -103,7 +211,7 @@ struct bt_ctf_stream_class *insert_new_stream_class(
 	writer_trace = bt_ctf_writer_get_trace(ctf_writer);
 	assert(writer_trace);
 
-	ret = ctf_copy_clock_classes(editor_component->err, writer_trace,
+	ret = modified_copy_clock_classes(editor_component->err, writer_trace,
 			writer_stream_class, trace);
 	if (ret != BT_COMPONENT_STATUS_OK) {
 		BT_LOGE_STR("Failed to copy clock classes.");
@@ -133,6 +241,11 @@ struct bt_ctf_stream_class *insert_new_stream_class(
 		BT_LOGE_STR("Failed to create field type for lost_end field.");
 		goto error;
 	}
+	deleted_field_type = bt_ctf_field_type_integer_create(64);
+	if (!deleted_field_type) {
+		BT_LOGE_STR("Failed to create field type for deleted_count field.");
+		goto error;
+	}
 
 	copy_packet_context_type = bt_ctf_field_type_copy(type);	// get a new packet context type
 	ret = bt_ctf_field_type_structure_add_field(copy_packet_context_type,
@@ -145,6 +258,12 @@ struct bt_ctf_stream_class *insert_new_stream_class(
 		end_field_type, "lost_end");	// add field "lost_end" to new packet context type
 	if (ret) {
 		BT_LOGE_STR("Failed to add lost_end field.");
+		goto error;
+	}
+	ret = bt_ctf_field_type_structure_add_field(copy_packet_context_type,
+		deleted_field_type, "deleted_count");	// add field "deleted_count" to new packet context type
+	if (ret) {
+		BT_LOGE_STR("Failed to add deleted_count field.");
 		goto error;
 	}
 
@@ -639,7 +758,7 @@ enum bt_component_status editor_new_packet(
 		struct bt_ctf_field *packet_context = NULL, *writer_packet_context = NULL;
 		struct bt_ctf_field *stream_packet_context = NULL;
 		struct bt_ctf_field_type *stream_packet_context_type = NULL, *packet_context_type = NULL;
-		struct bt_ctf_field *begin_field = NULL, *end_field = NULL;
+		struct bt_ctf_field *begin_field = NULL, *end_field = NULL, *deleted_field = NULL;
 		int fields_count = 0;
 		char *field_name;
 		struct bt_ctf_field_type *field_type;
@@ -688,6 +807,8 @@ enum bt_component_status editor_new_packet(
 		bt_ctf_field_unsigned_integer_set_value(begin_field, 0);
 		end_field = bt_ctf_field_structure_get_field_by_name(writer_packet_context, "lost_end");
 		bt_ctf_field_unsigned_integer_set_value(end_field, 0);
+		deleted_field = bt_ctf_field_structure_get_field_by_name(writer_packet_context, "deleted_count");
+		bt_ctf_field_unsigned_integer_set_value(deleted_field, 0);
 
 		ret = bt_ctf_stream_set_packet_context(writer_stream,
 				writer_packet_context);
@@ -717,6 +838,7 @@ enum bt_component_status editor_new_packet(
 		bt_put(packet_context_type);
 		bt_put(begin_field);
 		bt_put(end_field);
+		bt_put(deleted_field);
 		bt_put(field_type);
 		bt_put(field);
   	return ret;
@@ -860,8 +982,10 @@ enum bt_component_status editor_add_lost_event(struct editor_component *editor_c
 	struct bt_ctf_clock_class *clock_class = NULL;
 	struct bt_ctf_field_type *begin_field_type = NULL;
 	struct bt_ctf_field_type *end_field_type = NULL;
+	struct bt_ctf_field_type *deleted_field_type = NULL;
 	struct bt_ctf_field *begin_field = NULL;
 	struct bt_ctf_field *end_field = NULL;
+	struct bt_ctf_field *deleted_field = NULL;
 	struct bt_ctf_field *field = NULL;
 
   stream = bt_ctf_event_get_stream(editor_component->first_event);
@@ -880,6 +1004,7 @@ enum bt_component_status editor_add_lost_event(struct editor_component *editor_c
 	clock_class = event_get_clock_class(editor_component->err, editor_component->first_event);
 	clock_begin = bt_ctf_event_get_clock_value(editor_component->first_event, clock_class);
 	bt_ctf_clock_value_get_value(clock_begin, &ts_begin);
+	clock_class = event_get_clock_class(editor_component->err, editor_component->last_event);
 	clock_end = bt_ctf_event_get_clock_value(editor_component->last_event, clock_class);
 	bt_ctf_clock_value_get_value(clock_end, &ts_end);
 
@@ -888,25 +1013,26 @@ enum bt_component_status editor_add_lost_event(struct editor_component *editor_c
 	begin_field_type = bt_ctf_field_get_type(field);
 	field = bt_ctf_field_structure_get_field_by_name(copy_packet_context, "lost_end");
 	end_field_type = bt_ctf_field_get_type(field);
+	field = bt_ctf_field_structure_get_field_by_name(copy_packet_context, "deleted_count");
+	deleted_field_type = bt_ctf_field_get_type(field);
 
 	// Set the new fields in the packet context with the retrieved values
 	begin_field = bt_ctf_field_create(begin_field_type);
 	bt_ctf_field_unsigned_integer_set_value(begin_field, ts_begin);
 	end_field = bt_ctf_field_create(end_field_type);
 	bt_ctf_field_unsigned_integer_set_value(end_field, ts_end);
+	deleted_field = bt_ctf_field_create(deleted_field_type);
+	bt_ctf_field_unsigned_integer_set_value(deleted_field, editor_component->deleted_count);
+
 
 	bt_ctf_field_structure_set_field_by_name(copy_packet_context, "lost_begin", begin_field);
 	bt_ctf_field_structure_set_field_by_name(copy_packet_context, "lost_end", end_field);
+	bt_ctf_field_structure_set_field_by_name(copy_packet_context, "deleted_count", deleted_field);
 
 	// Set the packet context of the stream
 	bt_ctf_stream_set_packet_context(writer_stream, copy_packet_context);
 
-	// Add deleted events counter to the existing count of discarded events
-	bt_ctf_stream_append_discarded_events(writer_stream, editor_component->deleted_count);
-
-	uint64_t count = 0;
-	int_ret = bt_ctf_stream_get_discarded_events_count(writer_stream, &count);
-	printf("\nLOST EVENTS COUNT NOW: %d", count);
+	printf("\nLOST EVENTS COUNT NOW: %d", editor_component->deleted_count);
 
   ret = BT_COMPONENT_STATUS_OK;
   goto end;
@@ -920,9 +1046,11 @@ end:
 	bt_put(clock_class);
 	bt_put(end_field_type);
 	bt_put(begin_field_type);
+	bt_put(deleted_field_type);
 	bt_put(clock_begin);
 	bt_put(clock_end);
 	bt_put(begin_field);
+	bt_put(deleted_field);
 	bt_put(end_field);
 	bt_put(copy_packet_context);
   return ret;
