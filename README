@@ -12,8 +12,13 @@ Use this plugin:
 6. make install
 7. ldconfig
 
-References :
+References:
 * split string : https://stackoverflow.com/a/26228023
 * glib problem at "make" time : https://askubuntu.com/a/582385
+
+Credits:
+Babeltrace : 
+  * see the project main page and documentation: http://diamon.org/babeltrace/
+  * get the source code: http://git.linuxfoundation.org/?p=diamon/babeltrace.git
 
 WARNING : some code is duplicated from the fs-sink.ctf plugin (basically everything except for the handling of events)
